@@ -5,15 +5,17 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from eth_account import Account
 
-# Получаем токен из переменной окружения (Railway)
+# Получаем токен из переменной окружения
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("❌ Переменная окружения TELEGRAM_BOT_TOKEN не задана!")
+    raise RuntimeError("❌ Переменная окружения TELEGRAM_BOT_TOKEN не установлена!")
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
 )
 
+# Хранилище состояний пользователей (в памяти; для продакшена — Redis)
 user_state = {}
 
 def get_main_keyboard():
@@ -55,7 +57,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 balance = get_eth_balance(text)
                 await update.message.reply_text(f"💰 Баланс: {balance} ETH")
             else:
-                await update.message.reply_text("❌ Неверный адрес. Должен быть 42 символа, начинаться с 0x.")
+                await update.message.reply_text("❌ Неверный адрес. Должен быть 42 символа и начинаться с 0x.")
             user_state[user_id] = "main"
 
         elif state == "awaiting_address_tx":
@@ -67,7 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     msg = "📭 Транзакций не найдено или ошибка запроса."
                 await update.message.reply_text(msg)
             else:
-                await update.message.reply_text("❌ Неверный адрес. Должен быть 42 символа, начинаться с 0x.")
+                await update.message.reply_text("❌ Неверный адрес. Должен быть 42 символа и начинаться с 0x.")
             user_state[user_id] = "main"
 
         elif state == "awaiting_seed":
@@ -93,7 +95,8 @@ def get_eth_balance(address: str) -> str:
         res = requests.get(url, timeout=10)
         data = res.json()
         if data.get("status") == "1":
-            return f"{int(data['result']) / 1e18:.6f}"
+            balance_wei = int(data["result"])
+            return f"{balance_wei / 1e18:.6f}"
         else:
             return "0.0"
     except Exception as e:
@@ -117,13 +120,13 @@ def get_eth_transactions(address: str) -> list:
             return txs
         else:
             return []
-    except:
+    except Exception:
         return []
 
 if __name__ == "__main__":
-    print("🚀 Запуск бота на Railway...")
+    print("🚀 Запуск Telegram-бота...")
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("✅ Бот запущен!")
+    print("✅ Бот запущен и ожидает сообщений!")
     app.run_polling()
